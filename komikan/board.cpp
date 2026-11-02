@@ -15,11 +15,16 @@ Tablero::Tablero(){
         for (int c = 0; c < 5; c++) fila.push_back(f * 5 + c);
         agregar_linea(fila);
     }
-    for (int c = 0; c < 5; c++){                   // las 5 columnas
+        int cima[5] = {-1, 26, 25, 27, -1};        // el trono 
+    for (int c = 0; c < 5; c++) {              // las 5 columnas
         vector<int> col;
+        if (cima[c] >= 0) col.push_back(cima[c]);
         for (int f = 0; f < 5; f++) col.push_back(f * 5 + c);
         agregar_linea(col);
     }
+    agregar_linea({25, 26, 0});                     // diagonales
+    agregar_linea({25, 27, 4});
+    for (int i = 0; i < num_nodos; i++) sort(vecinos_[i].begin(), vecinos_[i].end());
 }
 
 bool Tablero::son_adyacentes(int a, int b) const{
