@@ -24,6 +24,7 @@ Tablero::Tablero(){
     }
     agregar_linea({25, 26, 0});                     // diagonales
     agregar_linea({25, 27, 4});
+    agregar_linea({26, 27});  
     for (int i = 0; i < num_nodos; i++) sort(vecinos_[i].begin(), vecinos_[i].end());
 }
 
