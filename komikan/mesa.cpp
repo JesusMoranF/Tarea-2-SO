@@ -247,6 +247,34 @@ void Mesa::ciclo_ficha(int ficha, unsigned int semilla){
 }
 }
 
+void Mesa::abandonar(Rol quien){
+    Candado g(&mtx_);
+    if (abandono_ == -1){
+    if (quien ==Rol::puma){
+        abandono_ = 0;
+    } else{
+        abandono_ = 1;
+    }
+}
+    pthread_cond_signal(&cv_juez_);
+}
+
+void Mesa::solicitar_detencion(){
+    Candado g(&mtx_);
+    detener_ = true;
+    pthread_cond_signal(&cv_juez_);
+}
+
+bool Mesa::esperar_fin(int timeout_ms){
+    Candado g(&mtx_);
+    timespec limite = dentro_de_ms(std::max(0, timeout_ms));
+    while (!finalizada_){
+        if (timeout_ms < 0) pthread_cond_wait(&cv_fin_, &mtx_);
+        else if (pthread_cond_timedwait(&cv_fin_, &mtx_, &limite) == ETIMEDOUT) break;
+    }
+    return finalizada_;
+}
+
 void Mesa::ejecutar() {
 
     string cabecera;{
@@ -284,8 +312,13 @@ void Mesa::ejecutar() {
         string bloque;{
             
             Candado g(&mtx_);
-            while (eventos_.empty() && estado_ == Estado::en_curso)
-            pthread_cond_wait(&cv_juez_, &mtx_);
+            while (eventos_.empty() && estado_ == Estado::en_curso && abandono_ == -1 && !detener_)
+                pthread_cond_wait(&cv_juez_, &mtx_);
+            
+            if (abandono_ == 0)  terminar(Estado::abandono_puma);
+            else if (abandono_ == 1) terminar(Estado::abandono_perros);
+            else if (detener_)  terminar(Estado::interrumpida);
+            
             for (int i = 0; i < (int)eventos_.size(); i++) bloque += eventos_[i] + "\n";
             
             eventos_.clear();
@@ -302,4 +335,9 @@ void Mesa::ejecutar() {
     // esperar a todas las fichas
     for (int f = 0; f < creados; f++) pthread_join(hilos[f], nullptr);
     emitir("Mesa " + to_string(id_) + ": termino (" + nombre_estado(estado_) + ", movs=" + to_string(movs_) + ", capturas=" + to_string(capturas_) + ")\n");
+
+    // avisar a los jugadores que esperan el fin de la partida
+    Candado g(&mtx_);
+    finalizada_ = true;
+    pthread_cond_broadcast(&cv_fin_);
 }
