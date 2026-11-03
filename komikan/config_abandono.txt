@@ -1,0 +1,6 @@
+# El jugador 1 falla a los 200 ms de empezar su partida y su oponente gana por abandono
+min_ms 50
+max_ms 300
+seed 42
+abandona 1
+abandona_ms 200

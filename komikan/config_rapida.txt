@@ -1,0 +1,5 @@
+#partidas rapidas para pruebas 
+min_ms 1
+max_ms 5
+seed 9
+llegada_max_ms 5

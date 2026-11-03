@@ -1,0 +1,17 @@
+# otro orden, el puma arriba cerca del trono y los perros repartidos por ahi
+seed 5
+min_ms 50
+max_ms 200
+puma 7
+perro 11
+perro 12
+perro 13
+perro 16
+perro 17
+perro 18
+perro 19
+perro 20
+perro 21
+perro 22
+perro 23
+perro 24
