@@ -29,14 +29,37 @@ struct PruebasMesa{
     }
 };
 
+void* hilo_juez(void* p){static_cast<Mesa*>(p)->ejecutar(); return nullptr;}
+
 Config rapida(unsigned seed){
     Config c;
     c.seed = seed; c.min_ms = 1; c.max_ms = 4; c.silencioso = true;
     return c;
 }
 
+Estado jugar(Mesa& m){
+    pthread_t j;
+    pthread_create(&j, nullptr, hilo_juez, &m);
+    pthread_join(j, nullptr);
+    return m.estado_final();
+}
+
 int main(){
     Tablero tab;
+
+        // 1.- muchas partidas
+    int puma = 0, perros = 0, limite = 0;
+    
+    for (unsigned seed = 1; seed <=60; seed++){
+        Mesa m(0, 1, 2, tab, rapida(seed));
+        Estado e = jugar(m);
+        check(e != Estado::en_curso && e !=Estado::error_interno);
+        check((e == Estado::gana_puma) == (m.capturas() >=6));
+        puma +=e == Estado::gana_puma;
+        perros +=e == Estado::ganan_perros;
+        limite += e== Estado::limite_movs;
+    }
+    printf("60 partidas: puma=%d perros=%d limite=%d\n", puma, perros, limite);
 
     {
         Config c = rapida(1);
