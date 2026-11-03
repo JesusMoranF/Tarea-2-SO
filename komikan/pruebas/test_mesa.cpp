@@ -1,6 +1,7 @@
 #include <cstdio>
 #include "mesa.hpp"
 #include <ctime>
+#include <unistd.h>
 
 int fallos = 0;
 #define check(cond) do {if (!(cond)) {printf("falo linea %d: %s\n", __LINE__, #cond); fallos++;}} while (0)
@@ -61,6 +62,46 @@ int main(){
         limite += e== Estado::limite_movs;
     }
     printf("60 partidas: puma=%d perros=%d limite=%d\n", puma, perros, limite);
+
+    for (int r = 0; r < 2; r++) {
+        Config c = rapida(7); c.min_ms = 20; c.max_ms = 40;
+        Mesa m(0, 1, 2, tab, c);
+        check(!m.esperar_fin(20));                         // todavia no se ejecuto
+        pthread_t j; pthread_create(&j, nullptr, hilo_juez, &m);
+        usleep(60000);
+        check(!m.esperar_fin(10));                         // la partida sigue
+        m.abandonar(r == 0 ? Rol::puma : Rol::perros);
+        check(m.esperar_fin(-1));
+        pthread_join(j, nullptr);
+        check(m.estado_final() == (r == 0 ? Estado::abandono_puma : Estado::abandono_perros));
+    }
+
+    // interrupcion del servidor
+    {
+        Config c = rapida(9); c.min_ms = 20; c.max_ms = 40;
+        Mesa m(0, 1, 2, tab, c);
+        pthread_t j; pthread_create(&j, nullptr, hilo_juez, &m);
+        usleep(60000);
+        m.solicitar_detencion();
+        pthread_join(j, nullptr);
+        check(m.estado_final() ==Estado::interrumpida);
+    }
+
+    // el puma parte acorralado, ganan los perros sin mover nada
+    {
+        Config c = rapida(3);
+        c.puma = 0;
+        c.perros = {1, 5, 26, 2, 10, 25, 12, 13, 14, 15, 16, 17};
+        Mesa m(0, 1, 2, tab, c);
+        check(jugar(m) == Estado::ganan_perros && m.movimientos()== 0);
+    }
+
+    // limite de movimientos
+    {
+        Config c = rapida(5); c.max_movs = 10;
+        Mesa m(0, 1, 2, tab, c);
+        check(jugar(m) == Estado::limite_movs && m.movimientos() ==10);
+    }
 
     {
         Config c = rapida(1);
