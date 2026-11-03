@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
+#include <memory>
 #include <pthread.h>
 #include <unistd.h>
 #include <vector>
@@ -12,15 +13,24 @@
 #include "mesa.hpp"
 using namespace std;
 
+struct Jugador{
+    pthread_mutex_t m;
+    pthread_cond_t cv;
+    shared_ptr<Mesa> mesa;
+    Rol rol = Rol::puma;
+    bool cancelado = false;
+};
+
 int num_jugadores = 0, max_mesas = 0, max_vivos = 0;
 Config cfg;
 Tablero tablero;
+vector<Jugador> jugadores;
 
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cv_matchmaker = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cv_main = PTHREAD_COND_INITIALIZER;  // cupo para crear jugadores y fin
 deque<int> cola;  // jugadores esperando pareja 
-vector<Mesa*> activas;
+vector<shared_ptr<Mesa>> activas;
 int jugadores_vivos = 0, jueces_vivos = 0;
 int mesas_activas = 0, max_activas = 0, partidas_iniciadas = 0;
 int resultados[8] = {0}; // partidas terminadas
@@ -31,38 +41,68 @@ void dormir_ms(int ms){
     usleep(ms * 1000);
 }
 
+void avisar(Jugador& j, const shared_ptr<Mesa>& mesa, Rol rol){
+    Candado g(&j.m);
+    if (mesa) { j.mesa = mesa; j.rol = rol; }
+    else if (!j.mesa) j.cancelado = true;
+    pthread_cond_signal(&j.cv);
+}
+
 void detener(){
     detenido = true;
     for (int i = 0; i < (int)activas.size(); i++) activas[i]->solicitar_detencion();
+    for (int i = 0; i < num_jugadores; i++) avisar(jugadores[i], nullptr, Rol::puma);
     pthread_cond_broadcast(&cv_matchmaker);
     pthread_cond_broadcast(&cv_main);
 }
 
 void* hilo_jugador(void* arg){
     int id = (int)(intptr_t)arg;
+    Jugador& yo = jugadores[id];
     unsigned int semilla = cfg.seed + 7919u * id + 3u;
     dormir_ms(rand_r(&semilla) % (cfg.llegada_max_ms + 1));  
 
-    Candado g(&mtx);
-    if (!detenido){
-        cola.push_back(id);
-        printf("[jugador %d] llega (en cola: %d)\n", id, (int)cola.size());
-        pthread_cond_signal(&cv_matchmaker);
+    {
+        Candado g(&mtx);
+        if (!detenido){
+            cola.push_back(id);
+            pthread_cond_signal(&cv_matchmaker);
+        }
     }
+    shared_ptr<Mesa> mesa;
+    Rol rol = Rol::puma;
+    {
+        Candado g(&yo.m);
+        while (!yo.mesa && !yo.cancelado) pthread_cond_wait(&yo.cv, &yo.m);
+        mesa = yo.mesa;
+        rol = yo.rol;
+    }
+    if (mesa){
+        bool fallara = count(cfg.abandonan.begin(), cfg.abandonan.end(), id) > 0;
+        if (fallara && !mesa->esperar_fin(cfg.abandona_ms)){
+            printf("[jugador %d] falla y se desconecta\n", id);
+            mesa->abandonar(rol);
+        }
+        mesa->esperar_fin(-1);
+    }
+    mesa.reset();
+
+    Candado g(&mtx);
     jugadores_vivos--;
     pthread_cond_broadcast(&cv_main);
     return nullptr;
 }
 
 void* hilo_mesa(void* arg){
-    Mesa* mesa = static_cast<Mesa*>(arg);
+    shared_ptr<Mesa> mesa = *static_cast<shared_ptr<Mesa>*>(arg);
+    delete static_cast<shared_ptr<Mesa>*>(arg);
     mesa->ejecutar();   // juega y espera a sus 13 fichas
 
     Candado g(&mtx);
     int id = mesa->id();
     resultados[(int)mesa->estado_final()]++;
     activas.erase(find(activas.begin(), activas.end(), mesa));
-    delete mesa;
+    mesa.reset();
     mesas_activas--;
     printf("mesas activas: %d/%d (cierra la mesa %d)\n", mesas_activas, max_mesas, id);
     jueces_vivos--;
@@ -86,25 +126,28 @@ void* hilo_matchmaker(void*){
         mesas_activas++;
         if (mesas_activas > max_mesas){  // nunca deberia pasar
             fprintf(stderr, "error, mesas activas %d > M=%d\n", mesas_activas, max_mesas);
-            exit(1);
-        }
+              exit(1);
+    }
         if (mesas_activas > max_activas) max_activas = mesas_activas;
         partidas_iniciadas++;
-        jueces_vivos++;
 
-        Mesa* mesa = new Mesa(k, puma, perros, tablero, cfg);
+        shared_ptr<Mesa> mesa = make_shared<Mesa>(k, puma, perros, tablero, cfg);
         activas.push_back(mesa);
+        jueces_vivos++;
         printf("mesas activas: %d/%d (abre la mesa %d)\n", mesas_activas, max_mesas, k);
         pthread_t juez;
-        if (pthread_create(&juez, &attr, hilo_mesa, mesa) != 0){
+        shared_ptr<Mesa>* arg = new shared_ptr<Mesa>(mesa);
+        if (pthread_create(&juez, &attr, hilo_mesa, arg) != 0){
             fprintf(stderr, "error, no se pudo crear el hilo de la mesa %d\n", k);
+            delete arg;
             activas.pop_back();
-            delete mesa;
             jueces_vivos--; mesas_activas--; partidas_iniciadas--;
             error_hilos = true;
             detener();
             break;
         }
+        avisar(jugadores[puma], mesa, Rol::puma);
+        avisar(jugadores[perros], mesa, Rol::perros);
     }
     pthread_attr_destroy(&attr);
     return nullptr;
@@ -158,6 +201,12 @@ int main(int argc, char* argv[]){
     printf("Jugadores (N): %d\nMesas maximas (M): %d\nRetardo: %d a %d ms\nSemilla: %u\n",
            num_jugadores, max_mesas, cfg.min_ms, cfg.max_ms, cfg.seed);
 
+    jugadores.resize(num_jugadores);
+    for (int i = 0; i < num_jugadores; i++){
+        pthread_mutex_init(&jugadores[i].m, nullptr);
+        pthread_cond_init(&jugadores[i].cv, nullptr);
+    }
+
     sigemptyset(&senales);
     sigaddset(&senales, SIGINT);
     sigaddset(&senales, SIGTERM);
@@ -203,6 +252,10 @@ int main(int argc, char* argv[]){
 
     pthread_kill(hilo_sen, SIGUSR1);
     pthread_join(hilo_sen, nullptr);
+    for (int i = 0; i < num_jugadores; i++){
+        pthread_cond_destroy(&jugadores[i].cv);
+        pthread_mutex_destroy(&jugadores[i].m);
+    }
 
     int terminadas = 0;
     for (int i = 0; i < 8; i++) terminadas += resultados[i];
