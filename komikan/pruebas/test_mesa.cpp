@@ -1,5 +1,6 @@
 #include <cstdio>
 #include "mesa.hpp"
+#include <ctime>
 
 int fallos = 0;
 #define check(cond) do {if (!(cond)) {printf("falo linea %d: %s\n", __LINE__, #cond); fallos++;}} while (0)
@@ -94,6 +95,17 @@ int main(){
         c.perros[5] = 2;                                            
         Mesa cerrado(0, 1, 2, tab, c);
         check(PruebasMesa::acorralado(cerrado));
+    }
+
+    {
+        Config c = rapida(5); c.min_ms = c.max_ms = 50; c.max_movs = 1;
+        Mesa m(0, 1, 2, tab, c);
+        timespec a, b;
+        clock_gettime(CLOCK_MONOTONIC, &a);
+        jugar(m);
+        clock_gettime(CLOCK_MONOTONIC, &b);
+        long ms = (b.tv_sec - a.tv_sec) * 1000 + (b.tv_nsec - a.tv_nsec)/1000000;
+        check(ms >=40);
     }
 
     if (fallos == 0) printf("todo ok\n");
