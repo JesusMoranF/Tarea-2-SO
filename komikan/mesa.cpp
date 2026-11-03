@@ -18,13 +18,15 @@ static timespec dentro_de_ms(long ms){
   return t;
 }
 
-Mesa::Mesa(int id, int jugador_puma, int jugador_perros, const Tablero& tablero, const Config& cfg)
-    : id_(id), jugador_puma_(jugador_puma), jugador_perros_(jugador_perros),
-    tab_(tablero), cfg_(cfg), celda_(num_nodos, -1){
-    pthread_mutex_init(&mtx_, nullptr);
-    pthread_cond_init(&cv_juez_, nullptr);
-    pthread_cond_init(&cv_fichas_, nullptr);
-    pthread_cond_init(&cv_fin_, nullptr);
+Mesa::Mesa(int id, int jugador_puma, int jugador_perros, const Tablero& tablero, const Config& cfg) : id_(id), jugador_puma_(jugador_puma), jugador_perros_(jugador_perros), tab_(tablero), cfg_(cfg), celda_(num_nodos, -1){
+   
+    pthread_condattr_t attr;                       
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&cv_juez_, &attr);
+    pthread_cond_init(&cv_fichas_, &attr);
+    pthread_cond_init(&cv_fin_, &attr);
+    pthread_condattr_destroy(&attr);
 
     pos_[0] = cfg_.puma;
     for (int i = 0; i < 12; i++) pos_[i + 1] = cfg_.perros[i];
