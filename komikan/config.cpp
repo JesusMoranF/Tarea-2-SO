@@ -19,7 +19,7 @@ bool cargar_config(const string& ruta, Config& cfg, string& error){
 
     while (getline(archivo, linea)){
         nlinea++;
-        istringstream ss(linea);
+        istringstream ss(linea.substr(0, linea.find('#')));   
         string clave, valor, sobra;
         if (!(ss >> clave)) continue;                
         string donde = ruta + ", linea " + to_string(nlinea) + ": ";
