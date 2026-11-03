@@ -20,7 +20,7 @@ static timespec dentro_de_ms(long ms){
 }
 
 Mesa::Mesa(int id, int jugador_puma, int jugador_perros, const Tablero& tablero, const Config& cfg) : id_(id), jugador_puma_(jugador_puma), jugador_perros_(jugador_perros), tab_(tablero), cfg_(cfg), celda_(num_nodos, -1){
-   
+    pthread_mutex_init(&mtx_, nullptr);
     pthread_condattr_t attr;                       
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
@@ -173,7 +173,7 @@ void Mesa::evento(const string& texto){
 }
 
 string Mesa::mensaje_final(Estado e) const{
-    string jp = jugador + to_string(jugador_puma_), jd = jugador + to_string(jugador_perros_);
+    string jp = "jugador" + to_string(jugador_puma_), jd = "jugador" + to_string(jugador_perros_);
 
     if (e == Estado::gana_puma){
         return "*** gana el puma (" + jp + ") con " + to_string(capturas_) + " capturas ***";
