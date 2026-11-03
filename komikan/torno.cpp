@@ -38,7 +38,8 @@ bool detenido = false, error_hilos = false;
 sigset_t senales;
 
 void dormir_ms(int ms){
-    usleep(ms * 1000);
+    timespec t = {ms / 1000, (ms % 1000) * 1000000L};
+    nanosleep(&t, nullptr);
 }
 
 void avisar(Jugador& j, const shared_ptr<Mesa>& mesa, Rol rol){
