@@ -63,3 +63,104 @@ bool Mesa::validar(const Jugada& j) const{
     if (j.medio < 0) return tab_.son_adyacentes(j.desde, j.hasta);          // paso
     return j.ficha == 0 && celda_[j.medio] > 0 && tab_.destino_salto(j.desde, j.medio) == j.hasta;                 
 }
+
+void Mesa::aplicar(const Jugada& j){
+    celda_[j.desde] = -1;
+    celda_[j.hasta] = j.ficha;
+    pos_[j.ficha] = j.hasta;
+    movs_++;
+    movs_sin_dibujar_++;
+    string de_a = to_string(j.desde) + " -> " + to_string(j.hasta);
+    if (j.medio >= 0) {
+        int perro = celda_[j.medio];
+        vivo_[perro] = false;
+        celda_[j.medio] = -1;
+        capturas_++;
+        evento("puma salta " + de_a + " y captura al perro " + to_string(perro) + " [capturas=" + to_string(capturas_) + "]");
+    }else{
+        evento((j.ficha == 0 ? string("puma") : "perro " + to_string(j.ficha)) + " mueve " + de_a);
+    }
+}
+
+bool Mesa::invariantes_ok() const{
+    int vivas = 0, ocupadas = 0;
+    for (int f = 0; f < 13; f++)
+        if (vivo_[f]) {
+            vivas++;
+            if (celda_[pos_[f]] != f) return false;       // cada ficha viva esta en su casilla
+        }
+    
+    for (int n = 0; n < num_nodos; n++)
+        if (celda_[n] != -1) ocupadas++;
+    return vivo_[0] && ocupadas == vivas && 13 - vivas == capturas_;
+}
+
+void Mesa::evaluar_victoria(){
+    if (estado_ != Estado::en_curso) return;
+    if (!invariantes_ok())  terminar(Estado::error_interno);
+    else if (capturas_ >= 6)   terminar(Estado::gana_puma);
+    else if (puma_acorralado())    terminar(Estado::ganan_perros);
+    else if (cfg_.max_movs > 0 && movs_ >= cfg_.max_movs) terminar(Estado::limite_movs);
+}
+
+// El primer cierre gana, despierta a todas las fichas como broadcast y al juez
+void Mesa::terminar(Estado e){
+    if (estado_ != Estado::en_curso) return;
+    estado_ = e;
+    evento(mensaje_final(e));
+    pthread_cond_broadcast(&cv_fichas_);
+}
+
+void Mesa::evento(const string& texto){
+    eventos_.push_back("Mesa " + to_string(id_) + ": " + texto);
+    pthread_cond_signal(&cv_juez_);
+}
+
+string Mesa::mensaje_final(Estado e) const{
+    string jp = jugador + to_string(jugador_puma_), jd = jugador + to_string(jugador_perros_);
+
+    if (e == Estado::gana_puma){
+        return "*** gana el puma (" + jp + ") con " + to_string(capturas_) + " capturas ***";
+    } 
+    else if (e == Estado::ganan_perros){
+        return "*** ganan los perros (" + jd + "): el puma quedo acorralado ***";
+    } 
+    else if (e == Estado::abandono_puma){
+        return "*** el " + jp + " (Puma) abandono: gana el " + jd + " (Perros) por abandono ***";
+    } 
+    else if (e == Estado::abandono_perros){
+        return "*** el " + jd + " (Perros) abandono: gana el " + jp + " (Puma) por abandono ***";
+    } 
+    else if (e == Estado::interrumpida){
+        return "*** partida interrumpida por el servidor ***";
+    } 
+    else if (e == Estado::limite_movs){
+        return "*** empate: se alcanzo el limite de " + to_string(cfg_.max_movs) + " movimientos ***";
+    } 
+    else{
+        return "*** error, invariante del tablero violado ***";
+    }
+}
+
+
+string Mesa::dibujar_tablero() const{
+    string c[num_nodos];                                  
+    for (int n = 0; n < num_nodos; n++){
+       if (celda_[n] == -1){
+          c[n] = ".";
+            }else if (celda_[n] == 0){
+          c[n] = "P";
+            }else{
+           c[n] = "D";
+      }     
+    }
+    
+    string s = "Mesa " + to_string(id_) + ": tablero (movs=" + to_string(movs_) + ", capturas=" + to_string(capturas_) + ")\n"; s += "       " + c[25] + "\n      " + c[26] + "   " + c[27] + "\n";       
+    
+    for (int f = 0; f < 5; f++) {
+        s += "    ";
+        for (int col = 0; col < 5; col++) s += c[f * 5 + col] + " ";
+        s += "\n";
+    }
+    return s;
+}
