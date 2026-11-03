@@ -234,28 +234,60 @@ void Mesa::ciclo_ficha(int ficha, unsigned int semilla){
         }
 }
 }
-void Mesa::ejecutar(){
- {
+
+void Mesa::ejecutar() {
+
+    string cabecera;{
+
         Candado g(&mtx_);
-        evaluar_victoria();    // por si el puma ya esta acorralado namas comenzar
- }
+        cabecera = "Mesa " + to_string(id_) + ": Puma = jugador " + to_string(jugador_puma_) + ", Perros = jugador " + to_string(jugador_perros_) + "\n" + dibujar_tablero();
+        evaluar_victoria();
+    }
+    emitir(cabecera);
+
     // lanzar las 13 fichas
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setstacksize(&attr, 512 * 1024);
     ArgsFicha args[13];
     pthread_t hilos[13];
+    
     int creados = 0;
+    
     for (int f = 0; f < 13; f++){
-         args[f] = {this, f, cfg_.seed + (unsigned)id_ * 1000u + (unsigned)f * 7u+1u};
+        args[f] = {this, f, cfg_.seed + (unsigned)id_ * 1000u + (unsigned)f * 7u + 1u};
+        
         if (pthread_create(&hilos[f], &attr, hilo_ficha, &args[f]) != 0){
             Candado g(&mtx_);
             terminar(Estado::error_interno);
-            break;
+        break;
         }
-     creados++;
+        creados++;
     }
     pthread_attr_destroy(&attr);
 
+    // el juez no hace nada hasta que pase algo
+    bool fin = false;
+    while (!fin){
+        string bloque;{
+            
+            Candado g(&mtx_);
+            while (eventos_.empty() && estado_ == Estado::en_curso)
+            pthread_cond_wait(&cv_juez_, &mtx_);
+            for (int i = 0; i < (int)eventos_.size(); i++) bloque += eventos_[i] + "\n";
+            
+            eventos_.clear();
+            fin = (estado_ != Estado::en_curso);
+            
+            if (fin || movs_sin_dibujar_ >= cfg_.periodo_tablero){
+                bloque += dibujar_tablero();
+                movs_sin_dibujar_ = 0;
+            }
+        }
+        emitir(bloque);  // se imprime fuera del lock
+    }
+
+    // esperar a todas las fichas
     for (int f = 0; f < creados; f++) pthread_join(hilos[f], nullptr);
+    emitir("Mesa " + to_string(id_) + ": termino (" + nombre_estado(estado_) + ", movs=" + to_string(movs_) + ", capturas=" + to_string(capturas_) + ")\n");
 }
