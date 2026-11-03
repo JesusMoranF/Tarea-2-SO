@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <ctime>
 #include <cstdlib>
+#include <ctime>
 
 const char* nombre_estado(Estado e){
     const char* nombres[] = {"en_curso", "gana_puma", "ganan_perros", "abandono_puma", "abandono_perros", "interrumpida", "limite_movs", "error_interno"};
