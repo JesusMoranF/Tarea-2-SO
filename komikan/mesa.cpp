@@ -211,7 +211,7 @@ string Mesa::dibujar_tablero() const{
       }     
     }
     
-    string s = "Mesa " + to_string(id_) + ": tablero (movs=" + to_string(movs_) + ", capturas=" + to_string(capturas_) + ")\n"; s += "       " + c[25] + "\n      " + c[26] + "   " + c[27] + "\n";       
+    string s = "Mesa " + to_string(id_) + ": tablero (movs=" + to_string(movs_) + ", capturas=" + to_string(capturas_) + ")\n"; s += "        " + c[25] + "\n      " + c[26] + "   " + c[27] + "\n";       
     
     for (int f = 0; f < 5; f++) {
         s += "    ";
