@@ -36,3 +36,30 @@ void Mesa::emitir(const string& s) const{
     if (cfg_.silencioso || s.empty()) return;
     fwrite(s.data(), 1, s.size(), stdout);     
 }
+
+vector<int> Mesa::vecinos_libres(int nodo) const{
+    vector<int> libres;
+    for (int i = 0; i < (int)tab_.vecinos(nodo).size(); i++)
+        if (celda_[tab_.vecinos(nodo)[i]] == -1) libres.push_back(tab_.vecinos(nodo)[i]);
+    return libres;
+}
+
+bool Mesa::puede_capturar(const Salto& s) const {          // hay un perro en medio y destino libre
+    return celda_[s.medio] > 0 && celda_[s.destino] == -1;
+}
+
+bool Mesa::puma_acorralado() const{
+    int p = pos_[0];
+    if (!vecinos_libres(p).empty()) return false;
+    for (int i = 0; i < (int)tab_.saltos(p).size(); i++)
+        if (puede_capturar(tab_.saltos(p)[i])) return false;
+    return true;
+}
+
+// El Juez valida la jugada y debe respetar la linea de salto y casillas.
+bool Mesa::validar(const Jugada& j) const{
+    if (estado_ != Estado::en_curso || !vivo_[j.ficha]) return false;
+    if (pos_[j.ficha] != j.desde || celda_[j.hasta] != -1) return false;     // destino ocupado
+    if (j.medio < 0) return tab_.son_adyacentes(j.desde, j.hasta);          // paso
+    return j.ficha == 0 && celda_[j.medio] > 0 && tab_.destino_salto(j.desde, j.medio) == j.hasta;                 
+}
