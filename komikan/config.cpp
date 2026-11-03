@@ -31,7 +31,7 @@ bool cargar_config(const string& ruta, Config& cfg, string& error){
       
         char* fin;
         long v = strtol(valor.c_str(), &fin, 10);
-        if (*fin != '\0' || v < -1000000000L || v > 4294967195L){ //limites bastante "flexibles"
+        if (*fin != '\0' || v < -1000000000L || v > 4294967295L){ //limites bastante "flexibles"
             error = donde + "'" + valor + "' no es un numero valido";
             return false;
         }
