@@ -7,9 +7,10 @@ void Tablero::agregar_linea(const vector<int>& l){
         vecinos_[l[i]].push_back(l[i + 1]);
         vecinos_[l[i + 1]].push_back(l[i]);
 }
-        for (int i = 0; i + 2 < n; i++)                 // tres consecutivos permiten un salto
+        for (int i = 0; i + 2 < n; i++){     // tres consecutivos permiten un salto
         saltos_[l[i]].push_back({l[i], l[i + 1], l[i + 2]});
         saltos_[l[i + 2]].push_back({l[i + 2], l[i + 1], l[i]});
+  }
 }
 
 Tablero::Tablero(){
