@@ -153,8 +153,7 @@ bool Mesa::invariantes_ok() const{
 
 void Mesa::evaluar_victoria(){
     if (estado_ != Estado::en_curso) return;
-    if (!invariantes_ok())  terminar(Estado::error_interno);
-    else if (capturas_ >= 6)   terminar(Estado::gana_puma);
+    if (capturas_ >= 6)   terminar(Estado::gana_puma);
     else if (puma_acorralado())    terminar(Estado::ganan_perros);
     else if (cfg_.max_movs > 0 && movs_ >= cfg_.max_movs) terminar(Estado::limite_movs);
 }
@@ -194,7 +193,7 @@ string Mesa::mensaje_final(Estado e) const{
         return "*** empate: se alcanzo el limite de " + to_string(cfg_.max_movs) + " movimientos ***";
     } 
     else{
-        return "*** error, invariante del tablero violado ***";
+        return "*** error, nte del tablero violado ***";
     }
 }
 
@@ -319,6 +318,7 @@ void Mesa::ejecutar() {
             if (abandono_ == 0)  terminar(Estado::abandono_puma);
             else if (abandono_ == 1) terminar(Estado::abandono_perros);
             else if (detener_)  terminar(Estado::interrumpida);
+            else if (!invariantes_ok()) terminar(Estado::error_interno);
             
             for (int i = 0; i < (int)eventos_.size(); i++) bloque += eventos_[i] + "\n";
             
