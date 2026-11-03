@@ -48,7 +48,7 @@ void* hilo_mesa(void* arg){
     resultados[(int)mesa->estado_final()]++;
     delete mesa;
     mesas_activas--;
-    printf("[mesa %d] cierra\n", id);
+    printf("mesas activas: %d/%d (cierra la mesa %d)\n", mesas_activas, max_mesas, id);
     jueces_vivos--;
     pthread_cond_signal(&cv_matchmaker);  // hay una mesa libre
     pthread_cond_broadcast(&cv_main);
@@ -61,19 +61,24 @@ void* hilo_matchmaker(void*){
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     for (int k = 0; k < num_jugadores / 2; k++){
         Candado g(&mtx);
-        if (cola.size() < 2 || mesas_activas >= max_mesas)
+        while (cola.size() < 2 || mesas_activas >= max_mesas)
             pthread_cond_wait(&cv_matchmaker, &mtx);  // espera
 
-        int puma = cola.front(); cola.pop_front();
+        int puma = cola.front();   cola.pop_front();
         int perros = cola.front(); cola.pop_front();
         mesas_activas++;
+        if (mesas_activas > max_mesas){  // nunca deberia pasar
+            fprintf(stderr, "error, mesas activas %d > M=%d\n", mesas_activas, max_mesas);
+            exit(1);
+        }
+        if (mesas_activas > max_activas) max_activas = mesas_activas;
         jueces_vivos++;
 
         Mesa* mesa = new Mesa(k, puma, perros, tablero, cfg);
-        printf("[mesa %d] abre (puma = jugador %d, perros = jugador %d)\n", k, puma, perros);
+        printf("mesas activas: %d/%d (abre la mesa %d)\n", mesas_activas, max_mesas, k);
         pthread_t juez;
         if (pthread_create(&juez, &attr, hilo_mesa, mesa) != 0){
-            fprintf(stderr, "ERROR: no se pudo crear el hilo de la mesa %d\n", k);
+            fprintf(stderr, "error, no se pudo crear el hilo de la mesa %d\n", k);
             exit(1);
         }
     }
@@ -99,7 +104,7 @@ int main(int argc, char* argv[]){
         return 1;
     }
     if (n % 2 != 0){
-        printf("N debe ser par: las partidas son entre parejas de jugadores (recibi N=%ld)\n", n);
+        printf("N debe ser par, las partidas son entre parejas de jugadores (recibi N=%ld)\n", n);
         return 1;
     }
     if (!leer_entero(argv[2], &m) || m <= 0 || m > 10000){
@@ -108,7 +113,7 @@ int main(int argc, char* argv[]){
     }
     num_jugadores = (int)n;
     max_mesas = (int)m;
-    max_vivos = 2 * max_mesas+ 1000;
+    max_vivos = 2 * max_mesas + 1000;
 
     string error;
     if ((argc == 4 && !cargar_config(argv[3], cfg, error)) || !validar_config(cfg, num_nodos, error)){
@@ -124,10 +129,10 @@ int main(int argc, char* argv[]){
         return 1;
     }
 
-    // un hilo por jugador (stack chico, detached); nunca mas de max_vivos a la vez
+    // un hilo por jugador, nunca mas de max_vivos a la vez
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    pthread_attr_setstacksize(&attr, 64*1024);
+    pthread_attr_setstacksize(&attr, 64 * 1024);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     for (int i = 0; i < num_jugadores; i++){
         {
@@ -146,12 +151,16 @@ int main(int argc, char* argv[]){
     pthread_join(matchmaker, nullptr);
     {
         Candado g(&mtx);   // esperar a que no quede ningun jugador ni juez
-        while (jugadores_vivos > 0 || jueces_vivos >0) pthread_cond_wait(&cv_main, &mtx);
+        while (jugadores_vivos > 0 || jueces_vivos > 0) pthread_cond_wait(&cv_main, &mtx);
     }
 
     int terminadas = 0;
     for (int i = 0; i < 8; i++) terminadas += resultados[i];
-    printf("\nTorneo terminado: %d partidas (puma=%d, perros=%d, abandonos=%d, otras=%d)\n", terminadas, resultados[(int)Estado::gana_puma], resultados[(int)Estado::ganan_perros],
-           resultados[(int)Estado::abandono_puma] + resultados[(int)Estado::abandono_perros], resultados[(int)Estado::limite_movs] + resultados[(int)Estado::error_interno]);
+    printf("\nTorneo terminado: %d partidas (puma=%d, perros=%d, abandonos=%d, otras=%d)\n",
+           terminadas,
+           resultados[(int)Estado::gana_puma], resultados[(int)Estado::ganan_perros],
+           resultados[(int)Estado::abandono_puma] + resultados[(int)Estado::abandono_perros],
+           resultados[(int)Estado::limite_movs] + resultados[(int)Estado::error_interno]);
+    printf("Maximo de mesas simultaneas: %d/%d\n", max_activas, max_mesas);
     return 0;
 }
