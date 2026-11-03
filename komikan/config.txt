@@ -1,0 +1,17 @@
+min_ms 50          # retardo minimo por movimiento
+max_ms 300         # retardo maximo por movimiento
+seed 42            # semilla de las decisiones aleatorias
+
+puma 12
+perro 10
+perro 14
+perro 15
+perro 16
+perro 17
+perro 18
+perro 19
+perro 20
+perro 21
+perro 22
+perro 23
+perro 24
