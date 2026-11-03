@@ -56,6 +56,50 @@ bool Mesa::puma_acorralado() const{
     return true;
 }
 
+// Un perro en destino es seguro si el puma no puede saltarlo.
+bool Mesa::es_seguro(int destino, int desde_perro) const{
+    for (int i = 0; i < (int)tab_.saltos(pos_[0]).size(); i++){
+        Salto s = tab_.saltos(pos_[0])[i];
+        if (s.medio == destino && (celda_[s.destino] == -1 || s.destino == desde_perro)) return false;
+    }
+    return true;
+}
+
+bool Mesa::elegir_jugada(int ficha, unsigned int* semilla, Jugada* out) const{
+    int desde = pos_[ficha];
+    vector<int> libres = vecinos_libres(desde);
+
+    if (ficha == 0){   // el puma prefiere capturar
+        vector<Salto> capturas;
+        for (int i = 0; i < (int)tab_.saltos(desde).size(); i++)
+            if (puede_capturar(tab_.saltos(desde)[i])) capturas.push_back(tab_.saltos(desde)[i]);
+        if (!capturas.empty()){
+            Salto s = capturas[rand_r(semilla) % capturas.size()];
+            *out = {0, desde, s.destino, s.medio};
+            return true;
+        }
+        
+    }else if (!libres.empty() && (int)(rand_r(semilla) % 100) >= cfg_.torpeza_pct){
+        // un perro que piensa solo se acerca al puma por casillas donde no lo puedan saltar, si no hay ninguna, se queda quieto. Con probabilidad torpeza_pct se equivoca y mueve al azar, para que haya handicap o si no el puma nunca ganaria
+
+        vector<int> dist(num_nodos, -1), cola(1, pos_[0]);    
+        dist[pos_[0]] = 0;
+         for (int i = 0; i < (int)cola.size(); i++)
+              for (int k = 0; k < (int)tab_.vecinos(cola[i]).size(); k++){
+                int v = tab_.vecinos(cola[i])[k];
+                if (dist[v] == -1) {dist[v] = dist[cola[i]] + 1; cola.push_back(v);}
+            }
+        vector<int> acercan;
+        for (int i = 0; i < (int)libres.size(); i++)
+            if (dist[libres[i]] < dist[desde] && es_seguro(libres[i], desde)) acercan.push_back(libres[i]);
+        if (acercan.empty()) return false;
+        libres = acercan;
+    }
+    if (libres.empty()) return false;
+    *out = {ficha, desde, libres[rand_r(semilla) % libres.size()], -1};
+    return true;
+}
+
 // El Juez valida la jugada y debe respetar la linea de salto y casillas.
 bool Mesa::validar(const Jugada& j) const{
     if (estado_ != Estado::en_curso || !vivo_[j.ficha]) return false;
