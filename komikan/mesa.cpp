@@ -222,20 +222,18 @@ void Mesa::ciclo_ficha(int ficha, unsigned int semilla){
         // retardo aleatorio 
         long ms = cfg_.min_ms + rand_r(&semilla) % (cfg_.max_ms - cfg_.min_ms + 1L);
         timespec t = {ms / 1000, (ms % 1000) * 1000000L};
-        nanosleep(&t, nullptr);
+        
+        Candado g(&mtx_);
+        if (estado_ !=Estado::en_curso || !vivo_[ficha]) return;
 
+        // sección critica unica para elegir, validar, aplicar y evaluar
         Jugada j;
-        bool hay = elegir_jugada(ficha, &semilla, &j);       // se elige la jugada mirando el tablero
-
-        Candado g(&mtx_);                                    // recien despúes se toma el mutex
-        if (estado_ != Estado::en_curso || !vivo_[ficha]) return;
-        if (hay && validar(j)){
+        if (elegir_jugada(ficha, &semilla, &j) && validar(j)){
             aplicar(j);
             evaluar_victoria();
- }
-    }
+        }
 }
-
+}
 void Mesa::ejecutar(){
  {
         Candado g(&mtx_);
