@@ -9,6 +9,14 @@ const char* nombre_estado(Estado e){
        return nombres[(int)e];
 }
 
+static timespec dentro_de_ms(long ms){
+    timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    t.tv_sec += ms/1000;
+    t.tv_nsec += (ms % 1000)*1000000L;
+    if (t.tv_nsec >= 1000000000L){t.tv_sec++; t.tv_nsec -= 1000000000L;}
+  return t;
+}
 
 Mesa::Mesa(int id, int jugador_puma, int jugador_perros, const Tablero& tablero, const Config& cfg)
     : id_(id), jugador_puma_(jugador_puma), jugador_perros_(jugador_perros),
@@ -218,13 +226,15 @@ void* Mesa::hilo_ficha(void* arg){
 }
 
 void Mesa::ciclo_ficha(int ficha, unsigned int semilla){
-    for (;;) {
-        // retardo aleatorio 
+    for (;;){
         long ms = cfg_.min_ms + rand_r(&semilla) % (cfg_.max_ms - cfg_.min_ms + 1L);
-        timespec t = {ms / 1000, (ms % 1000) * 1000000L};
-        
+        timespec limite = dentro_de_ms(ms);
+
         Candado g(&mtx_);
-        if (estado_ !=Estado::en_curso || !vivo_[ficha]) return;
+        // espera simple pero inquebrantable, se corta si la partida termina
+        while (estado_ ==Estado::en_curso)
+            if (pthread_cond_timedwait(&cv_fichas_, &mtx_, &limite) == ETIMEDOUT) break;
+        if (estado_ != Estado::en_curso || !vivo_[ficha]) return;
 
         // sección critica unica para elegir, validar, aplicar y evaluar
         Jugada j;
