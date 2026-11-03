@@ -74,7 +74,7 @@ void* hilo_jugador(void* arg){
     {
         Candado g(&yo.m);
         while (!yo.mesa && !yo.cancelado) pthread_cond_wait(&yo.cv, &yo.m);
-        mesa = yo.mesa;
+        mesa = move(yo.mesa);
         rol = yo.rol;
     }
     if (mesa){
