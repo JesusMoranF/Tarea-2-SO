@@ -209,3 +209,55 @@ string Mesa::dibujar_tablero() const{
     }
     return s;
 }
+
+
+void* Mesa::hilo_ficha(void* arg){
+    ArgsFicha* a = static_cast<ArgsFicha*>(arg);
+    a->mesa->ciclo_ficha(a->ficha, a->semilla);
+    return nullptr;
+}
+
+void Mesa::ciclo_ficha(int ficha, unsigned int semilla){
+    for (;;) {
+        // retardo aleatorio 
+        long ms = cfg_.min_ms + rand_r(&semilla) % (cfg_.max_ms - cfg_.min_ms + 1L);
+        timespec t = {ms / 1000, (ms % 1000) * 1000000L};
+        nanosleep(&t, nullptr);
+
+        Jugada j;
+        bool hay = elegir_jugada(ficha, &semilla, &j);       // se elige la jugada mirando el tablero
+
+        Candado g(&mtx_);                                    // recien despúes se toma el mutex
+        if (estado_ != Estado::en_curso || !vivo_[ficha]) return;
+        if (hay && validar(j)){
+            aplicar(j);
+            evaluar_victoria();
+ }
+    }
+}
+
+void Mesa::ejecutar(){
+ {
+        Candado g(&mtx_);
+        evaluar_victoria();    // por si el puma ya esta acorralado namas comenzar
+ }
+    // lanzar las 13 fichas
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 512 * 1024);
+    ArgsFicha args[13];
+    pthread_t hilos[13];
+    int creados = 0;
+    for (int f = 0; f < 13; f++){
+         args[f] = {this, f, cfg_.seed + (unsigned)id_ * 1000u + (unsigned)f * 7u+1u};
+        if (pthread_create(&hilos[f], &attr, hilo_ficha, &args[f]) != 0){
+            Candado g(&mtx_);
+            terminar(Estado::error_interno);
+            break;
+        }
+     creados++;
+    }
+    pthread_attr_destroy(&attr);
+
+    for (int f = 0; f < creados; f++) pthread_join(hilos[f], nullptr);
+}
