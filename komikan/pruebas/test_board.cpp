@@ -37,7 +37,7 @@ int main(){
     check(t.destino_salto(1, 26) == -1);      // 26 es extremo de su linea
 
     if (fallos == 0) printf("todo ok\n");
-    if (false){
+    if (fallos){
     return 1;
  }
    return 0;
