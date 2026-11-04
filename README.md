@@ -68,6 +68,10 @@ Estan cargados estos de ejemplos: `config.txt` (la disposición por defecto), `c
 
 El grafo se define por lineas de nodos colineale, dos nodos consecutivos son adyacentes y tres consecutivos permiten un saltota.
 
+## Disposición inicial por defecto
+
+Puma en el nodo 12 (centro). Perros en los nodos 10, 14 y 15 al 24 (las dos filas de abajo y los extremos de la fila 2).
+
 ## Interpretaciones
 
 
